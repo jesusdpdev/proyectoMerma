@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Analítico Operativo</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .row-hover:hover { background-color: #f1f5f9; cursor: pointer; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-purple-500/30">
+                    <i class="fa-solid fa-chart-pie"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg leading-tight">Dashboard Analítico Operativo</h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">Control de Ventas, Mermas y Planogramas</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <div id="sync-status" class="flex items-center space-x-2 text-xs bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400" id="status-dot"></span>
+                    <span id="status-text" class="text-slate-300 font-medium hidden sm:inline">Listo</span>
+                </div>
+
+                <button onclick="syncDataFromSheets()" id="btn-sync" class="bg-purple-600 hover:bg-purple-500 text-white p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 shadow-sm active:scale-95">
+                    <i class="fa-solid fa-rotate" id="sync-icon"></i>
+                    <span class="hidden sm:inline">Sincronizar</span>
+                </button>
+
+                <button onclick="openConfigModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold transition border border-slate-700">
+                    <i class="fa-solid fa-link"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+
+        <!-- Toast Notifications Container -->
+        <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+        <!-- Filter & Control Panel -->
+        <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center space-x-2">
+                    <h2 class="font-bold text-slate-800 text-sm sm:text-base flex items-center space-x-2">
+                        <i class="fa-solid fa-sliders text-purple-600"></i>
+                        <span>Filtros Operativos</span>
+                    </h2>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <button onclick="resetFilters()" class="text-xs text-slate-500 hover:text-purple-600 font-medium px-2.5 py-1 rounded-lg transition hover:bg-slate-100">
+                        <i class="fa-solid fa-arrow-rotate-left mr-1"></i>Limpiar Filtros
+                    </button>
+                </div>
+            </div>
+
+            <!-- Controls Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <!-- Filter Supervisor -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Supervisor</label>
+                    <select id="select-supervisor" onchange="onSupervisorChange()" class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none transition">
+                        <option value="ALL">Todos los Supervisores</option>
+                    </select>
+                </div>
+
+                <!-- Filter Colaborador -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Colaborador</label>
+                    <select id="select-colaborador" onchange="applyFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none transition">
+                        <option value="ALL">Todos los Colaboradores</option>
+                    </select>
+                </div>
+
+                <!-- Search Input -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Buscar Planograma / SKU</label>
+                    <div class="relative">
+                        <input type="text" id="input-search" oninput="applyFilters()" placeholder="Ej: Maybelline, LA Colors, Hel Nev..." class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl pl-8 pr-3 py-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none transition">
+                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-3 text-slate-400 text-xs"></i>
+                    </div>
+                </div>
+
+                <!-- Ordering Selector -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Ordenar Por</label>
+                    <select id="select-sort" onchange="applyFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none transition">
+                        <option value="part_desc" selected>Mayor % Participación</option>
+                        <option value="venta_desc">Mayor Venta ($)</option>
+                        <option value="venta_asc">Menor Venta ($)</option>
+                        <option value="merma_desc">Mayor Merma ($)</option>
+                        <option value="merma_asc">Menor Merma ($)</option>
+                        <option value="ratio_desc">Mayor % Merma</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- KPI Executive Cards (4 Columns) -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <!-- Ventas Totales -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md transition">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Ventas Totales</span>
+                    <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-dollar-sign"></i>
+                    </div>
+                </div>
+                <div class="text-xl sm:text-3xl font-black text-slate-900 tracking-tight" id="kpi-ventas">$0.00</div>
+                <div class="text-[11px] font-semibold text-slate-500 mt-1" id="kpi-ventas-unidades">0 Planogramas activos</div>
+            </div>
+
+            <!-- Merma Total -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md transition">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Merma Total</span>
+                    <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-arrow-down-trend-white"></i>
+                    </div>
+                </div>
+                <div class="text-xl sm:text-3xl font-black text-rose-600 tracking-tight" id="kpi-merma">$0.00</div>
+                <div class="text-[11px] font-semibold text-slate-500 mt-1" id="kpi-merma-unidades">Monto total merma</div>
+            </div>
+
+            <!-- % Merma / Ventas -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md transition">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">% Merma / Ventas</span>
+                    <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-percent"></i>
+                    </div>
+                </div>
+                <div class="text-xl sm:text-3xl font-black text-amber-600 tracking-tight" id="kpi-ratio">0.00%</div>
+                <div class="text-[11px] font-semibold text-slate-500 mt-1">Ratio de Pérdida</div>
+            </div>
+
+            <!-- Part. en Ventas -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md transition">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Part. en Ventas</span>
+                    <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-chart-pie"></i>
+                    </div>
+                </div>
+                <div class="text-xl sm:text-3xl font-black text-indigo-600 tracking-tight" id="kpi-part">0.0%</div>
+                <div class="text-[11px] font-semibold text-slate-500 mt-1" id="kpi-planogramas-count">0 Planogramas filtrados</div>
+            </div>
+        </section>
+
+        <!-- Main Data Table Container -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                <div class="flex items-center space-x-2">
+                    <h3 class="font-bold text-slate-800 text-sm sm:text-base">Detalle por Planograma</h3>
+                    <span id="records-count" class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-bold">0 Registros</span>
+                </div>
+                <div class="text-xs text-purple-600 font-semibold flex items-center space-x-1">
+                    <i class="fa-solid fa-hand-pointer text-xs"></i>
+                    <span>Toca un planograma para ver Top 10 SKUs</span>
+                </div>
+            </div>
+
+            <!-- Responsive Table -->
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse min-w-[700px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-[11px] uppercase tracking-wider font-bold text-slate-400 border-b border-slate-100">
+                            <th class="py-3.5 px-4 sm:px-5">Planograma / Supervisor</th>
+                            <th class="py-3.5 px-4 text-right">Venta ($)</th>
+                            <th class="py-3.5 px-4 text-right">Merma ($)</th>
+                            <th class="py-3.5 px-4 text-center">% Merma</th>
+                            <th class="py-3.5 px-4 sm:px-5 text-right font-black text-purple-700">% Part. Venta</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-slate-100 text-xs font-medium">
+                        <!-- Dynamic Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Top 10 Items Drill-Down -->
+    <div id="modal-planogram-detail" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in duration-200">
+            <!-- Modal Header -->
+            <div class="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs bg-purple-600 text-white px-2 py-0.5 rounded font-bold uppercase tracking-wide">Top 10 SKUs</span>
+                        <h3 id="modal-plano-title" class="font-black text-base sm:text-lg text-white">Nombre Planograma</h3>
+                    </div>
+                    <div class="text-xs text-slate-300 mt-1" id="modal-plano-subtitle">
+                        Supervisor: <span class="text-white font-semibold" id="modal-plano-sup">-</span> | Colaborador: <span class="text-white font-semibold" id="modal-plano-colab">-</span>
+                    </div>
+                </div>
+                <button onclick="closePlanogramModal()" class="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body Content -->
+            <div class="p-4 sm:p-6 overflow-y-auto custom-scrollbar space-y-6 flex-1 bg-slate-50/50">
+                <!-- Summary Mini KPIs inside Modal -->
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm text-center">
+                        <span class="text-[10px] font-bold uppercase text-slate-400 block">Ventas Totales</span>
+                        <span id="modal-kpi-sales" class="text-sm sm:text-lg font-black text-slate-900">$0.00</span>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm text-center">
+                        <span class="text-[10px] font-bold uppercase text-slate-400 block">Merma Total</span>
+                        <span id="modal-kpi-merma" class="text-sm sm:text-lg font-black text-rose-600">$0.00</span>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm text-center">
+                        <span class="text-[10px] font-bold uppercase text-slate-400 block">% Merma / Venta</span>
+                        <span id="modal-kpi-ratio" class="text-sm sm:text-lg font-black text-amber-600">0.00%</span>
+                    </div>
+                </div>
+
+                <!-- Two Column Layout for Top 10 -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Column 1: Top 10 Más Vendidos -->
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between border-b pb-2.5">
+                            <h4 class="font-bold text-xs sm:text-sm text-emerald-800 flex items-center space-x-1.5">
+                                <i class="fa-solid fa-arrow-up-right-dots text-emerald-600"></i>
+                                <span>Top 10 Ítems Más Vendidos</span>
+                            </h4>
+                            <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">Por Venta ($)</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead>
+                                    <tr class="text-[10px] text-slate-400 uppercase border-b">
+                                        <th class="pb-2">SKU / Descripción</th>
+                                        <th class="pb-2 text-right">Unid.</th>
+                                        <th class="pb-2 text-right">Venta ($)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modal-top-sales-body" class="divide-y divide-slate-100">
+                                    <!-- Dynamic Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Top 10 Mayor Merma -->
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between border-b pb-2.5">
+                            <h4 class="font-bold text-xs sm:text-sm text-rose-800 flex items-center space-x-1.5">
+                                <i class="fa-solid fa-triangle-exclamation text-rose-600"></i>
+                                <span>Top 10 Mayor Merma</span>
+                            </h4>
+                            <span class="text-[10px] bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full">Por Merma ($)</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead>
+                                    <tr class="text-[10px] text-slate-400 uppercase border-b">
+                                        <th class="pb-2">SKU / Descripción</th>
+                                        <th class="pb-2 text-right">Unid.</th>
+                                        <th class="pb-2 text-right">Merma ($)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modal-top-merma-body" class="divide-y divide-slate-100">
+                                    <!-- Dynamic Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-3 bg-slate-100 border-t flex justify-end flex-shrink-0">
+                <button onclick="closePlanogramModal()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition">
+                    Cerrar Detalle
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuración Script -->
+    <div id="modal-config" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100">
+            <div class="p-5 bg-slate-900 text-white flex items-center justify-between">
+                <h3 class="font-bold text-base flex items-center space-x-2">
+                    <i class="fa-solid fa-link text-purple-400"></i>
+                    <span>Conexión Google Sheets</span>
+                </h3>
+                <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 space-y-4 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">URL de la Web App desplegada en Apps Script:</label>
+                    <input type="text" id="input-webapp-url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-slate-800 font-mono text-[11px] focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                </div>
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 space-y-1">
+                    <p class="font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Importante:</p>
+                    <p>Asegúrate de que al publicar tu script en Google Sheets selecciones:</p>
+                    <ul class="list-disc list-inside text-[11px] space-y-0.5">
+                        <li><strong>Ejecutar como:</strong> Yo (tu cuenta)</li>
+                        <li><strong>Quién tiene acceso:</strong> Cualquier persona (Anyone)</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="p-4 bg-slate-50 border-t flex justify-end space-x-2">
+                <button onclick="closeConfigModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold">Cancelar</button>
+                <button onclick="saveConfigUrl()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold">Guardar y Conectar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Container for GAS Server Injected Data -->
+    <script id="server-initial-data" type="application/json"><?!= initialData ?></script>
+
+    <!-- Global Application Engine -->
+    <script>
+        const DEFAULT_WEBAPP_URL = "https://script.google.com/macros/s/AKfycby6TYMm7OZGp-g-E10eLUHcYhPnTzfM1P0z8aJGnjKdUyn9Ah2MYwPy4aWPR6GOqWdc/exec";
+        
+        let globalData = [];
+        let filteredData = [];
+        let storeTotalVentas = 0;
+
+        // Sample Fallback Data for offline / preview mode
+        const DEMO_DATA = [
+            { item: "A01", desc: "CUIDADO FACIAL (5X) 3,60M", v_usd: 5867.00, m_usd: -77.00, m_unidades: 3, v_unidades: 120, planograma: "CUIDADO FACIAL (5X) 3,60M", supervisor: "CARLA RODRIGUEZ", colaborador: "DANIELA MONCADA" },
+            { item: "A02", desc: "MAYBELLINE (3E) 1,2 M", v_usd: 2054.00, m_usd: -18.00, m_unidades: 2, v_unidades: 85, planograma: "MAYBELLINE (3E) 1,2 M", supervisor: "CARLA RODRIGUEZ", colaborador: "DANIELA MONCADA" },
+            { item: "A03", desc: "HEL NEV GENERICA (03) 0,75 M", v_usd: 470.00, m_usd: 9.00, m_unidades: 1, v_unidades: 20, planograma: "HEL NEV GENERICA (03) 0,75 M", supervisor: "CARLA RODRIGUEZ", colaborador: "MARY REDONDO" },
+            { item: "A04", desc: "LA COLORS (3A) 1,2 M", v_usd: 338.00, m_usd: -4.00, m_unidades: 1, v_unidades: 14, planograma: "LA COLORS (3A) 1,2 M", supervisor: "CARLA RODRIGUEZ", colaborador: "ANDREA RIOS" },
+            { item: "A05", desc: "FACIAL MARCA PROPIA (3X) 1,2M", v_usd: 3418.00, m_usd: -154.00, m_unidades: 8, v_unidades: 95, planograma: "FACIAL MARCA PROPIA (3X) 1,2M", supervisor: "CARLA RODRIGUEZ", colaborador: "DANIELA MONCADA" },
+            { item: "A06", desc: "FRAGANCIAS", v_usd: 2966.00, m_usd: 0.00, m_unidades: 0, v_unidades: 45, planograma: "FRAGANCIAS", supervisor: "CARLA RODRIGUEZ", colaborador: "MARY REDONDO" },
+            { item: "A07", desc: "ESSENCE (3A) 1,2 M", v_usd: 1364.00, m_usd: -29.00, m_unidades: 2, v_unidades: 30, planograma: "ESSENCE (3A) 1,2 M", supervisor: "CARLA RODRIGUEZ", colaborador: "MARY REDONDO" },
+            { item: "A08", desc: "SALOME (3A) 1,20M", v_usd: 1220.00, m_usd: 33.00, m_unidades: 4, v_unidades: 28, planograma: "SALOME (3A) 1,20M", supervisor: "CARLA RODRIGUEZ", colaborador: "MARY REDONDO" },
+            { item: "A09", desc: "MASGLO (3A) 1,20M", v_usd: 771.00, m_usd: -12.00, m_unidades: 1, v_unidades: 15, planograma: "MASGLO (3A) 1,20M", supervisor: "CARLA RODRIGUEZ", colaborador: "ANDREA RIOS" }
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initDashboard();
+        });
+
+        function initDashboard() {
+            let serverData = null;
+            try {
+                const el = document.getElementById('server-initial-data');
+                if (el && el.textContent) {
+                    const raw = el.textContent.trim();
+                    if (raw && !raw.startsWith('<?')) {
+                        serverData = JSON.parse(raw);
+                    }
+                }
+            } catch (err) {
+                console.warn("Initial payload parsing skipped:", err);
+            }
+
+            if (serverData && serverData.data && serverData.data.length > 0) {
+                loadDataSet(serverData.data, serverData.totalVentas);
+                showToast("Datos cargados correctamente desde el servidor.", "success");
+            } else {
+                syncDataFromSheets();
+            }
+        }
+
+        function loadDataSet(dataArray, totalVentasCustom) {
+            globalData = dataArray || [];
+            storeTotalVentas = totalVentasCustom || globalData.reduce((sum, item) => sum + (parseFloat(item.v_usd) || 0), 0);
+            
+            populateSupervisors();
+            applyFilters();
+        }
+
+        function syncDataFromSheets() {
+            setSyncStatus("loading", "Sincronizando...");
+            const url = localStorage.getItem("APP_WEBAPP_URL") || DEFAULT_WEBAPP_URL;
+
+            fetch(url + "?api=json")
+                .then(res => res.json())
+                .then(resData => {
+                    if (resData && resData.data) {
+                        loadDataSet(resData.data, resData.totalVentas);
+                        setSyncStatus("success", "Sincronizado");
+                        showToast("Datos actualizados exitosamente", "success");
+                    } else {
+                        throw new Error(resData.error || "Formato no válido");
+                    }
+                })
+                .catch(err => {
+                    console.warn("Ejecutando datos demo:", err);
+                    loadDataSet(DEMO_DATA);
+                    setSyncStatus("demo", "Modo Demo");
+                    showToast("Mostrando datos en modo demostración.", "info");
+                });
+        }
+
+        function setSyncStatus(state, msg) {
+            const dot = document.getElementById('status-dot');
+            const txt = document.getElementById('status-text');
+            const icon = document.getElementById('sync-icon');
+
+            txt.innerText = msg;
+            if (state === "loading") {
+                dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+                icon.className = "fa-solid fa-rotate animate-spin";
+            } else if (state === "success") {
+                dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+                icon.className = "fa-solid fa-rotate";
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-purple-400";
+                icon.className = "fa-solid fa-rotate";
+            }
+        }
+
+        function populateSupervisors() {
+            const selectSup = document.getElementById('select-supervisor');
+            const currentSelected = selectSup.value;
+
+            const supervisors = [...new Set(globalData.map(d => d.supervisor || 'NO ASIGNADO'))].sort();
+            selectSup.innerHTML = `<option value="ALL">Todos los Supervisores (${supervisors.length})</option>`;
+            
+            supervisors.forEach(sup => {
+                const opt = document.createElement('option');
+                opt.value = sup;
+                opt.textContent = sup;
+                selectSup.appendChild(opt);
+            });
+
+            if (supervisors.includes(currentSelected)) {
+                selectSup.value = currentSelected;
+            }
+            onSupervisorChange();
+        }
+
+        function onSupervisorChange() {
+            const selectedSup = document.getElementById('select-supervisor').value;
+            const selectCol = document.getElementById('select-colaborador');
+
+            let relevantData = globalData;
+            if (selectedSup !== 'ALL') {
+                relevantData = globalData.filter(d => (d.supervisor || 'NO ASIGNADO') === selectedSup);
+            }
+
+            const colaboradores = [...new Set(relevantData.map(d => d.colaborador || 'NO ASIGNADO'))].sort();
+            selectCol.innerHTML = `<option value="ALL">Todos los Colaboradores (${colaboradores.length})</option>`;
+            
+            colaboradores.forEach(col => {
+                const opt = document.createElement('option');
+                opt.value = col;
+                opt.textContent = col;
+                selectCol.appendChild(opt);
+            });
+
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const supFilter = document.getElementById('select-supervisor').value;
+            const colFilter = document.getElementById('select-colaborador').value;
+            const searchQuery = document.getElementById('input-search').value.toLowerCase().trim();
+            const sortMode = document.getElementById('select-sort').value;
+
+            filteredData = globalData.filter(item => {
+                const matchesSup = (supFilter === 'ALL') || ((item.supervisor || 'NO ASIGNADO') === supFilter);
+                const matchesCol = (colFilter === 'ALL') || ((item.colaborador || 'NO ASIGNADO') === colFilter);
+                
+                const itemText = `${item.planograma || ''} ${item.desc || ''} ${item.item || ''}`.toLowerCase();
+                const matchesSearch = !searchQuery || itemText.includes(searchQuery);
+
+                return matchesSup && matchesCol && matchesSearch;
+            });
+
+            const groupedMap = {};
+            filteredData.forEach(item => {
+                const key = item.planograma || 'SIN PLANOGRAMA';
+                if (!groupedMap[key]) {
+                    groupedMap[key] = {
+                        planograma: key,
+                        supervisor: item.supervisor || 'NO ASIGNADO',
+                        colaborador: item.colaborador || 'NO ASIGNADO',
+                        v_usd: 0,
+                        m_usd: 0,
+                        itemsCount: 0
+                    };
+                }
+                groupedMap[key].v_usd += parseFloat(item.v_usd) || 0;
+                groupedMap[key].m_usd += parseFloat(item.m_usd) || 0;
+                groupedMap[key].itemsCount += 1;
+            });
+
+            let planogramList = Object.values(groupedMap);
+
+            planogramList.sort((a, b) => {
+                const absMermaA = Math.abs(a.m_usd);
+                const absMermaB = Math.abs(b.m_usd);
+                const ratioA = a.v_usd > 0 ? (absMermaA / a.v_usd) : 0;
+                const ratioB = b.v_usd > 0 ? (absMermaB / b.v_usd) : 0;
+                const partA = storeTotalVentas > 0 ? (a.v_usd / storeTotalVentas) : 0;
+                const partB = storeTotalVentas > 0 ? (b.v_usd / storeTotalVentas) : 0;
+
+                switch (sortMode) {
+                    case 'venta_asc': return a.v_usd - b.v_usd;
+                    case 'merma_desc': return absMermaB - absMermaA;
+                    case 'merma_asc': return absMermaA - absMermaB;
+                    case 'ratio_desc': return ratioB - ratioA;
+                    case 'venta_desc': return b.v_usd - a.v_usd;
+                    case 'part_desc': default: return partB - partA;
+                }
+            });
+
+            renderKPIs(planogramList);
+            renderTable(planogramList);
+        }
+
+        function renderKPIs(planogramList) {
+            const totalVentasSel = planogramList.reduce((sum, p) => sum + p.v_usd, 0);
+            const totalMermaSel = planogramList.reduce((sum, p) => sum + p.m_usd, 0);
+            const ratioSel = totalVentasSel > 0 ? (Math.abs(totalMermaSel) / totalVentasSel) * 100 : 0;
+            const partTienda = storeTotalVentas > 0 ? (totalVentasSel / storeTotalVentas) * 100 : 0;
+
+            document.getElementById('kpi-ventas').innerText = formatCurrency(totalVentasSel);
+            document.getElementById('kpi-ventas-unidades').innerText = `${planogramList.length} Planogramas activos`;
+
+            document.getElementById('kpi-merma').innerText = formatCurrency(totalMermaSel);
+            document.getElementById('kpi-merma-unidades').innerText = totalMermaSel > 0 ? 'Ajuste a favor / Recuperado' : 'Monto total merma';
+
+            const ratioEl = document.getElementById('kpi-ratio');
+            ratioEl.innerText = ratioSel.toFixed(2) + '%';
+            
+            // Color KPI % Merma dinámico
+            if (totalMermaSel < 0) {
+                ratioEl.className = "text-xl sm:text-3xl font-black text-rose-600 tracking-tight";
+            } else if (totalMermaSel > 0) {
+                ratioEl.className = "text-xl sm:text-3xl font-black text-amber-600 tracking-tight";
+            } else {
+                ratioEl.className = "text-xl sm:text-3xl font-black text-emerald-600 tracking-tight";
+            }
+
+            document.getElementById('kpi-part').innerText = partTienda.toFixed(1) + '%';
+            document.getElementById('kpi-planogramas-count').innerText = `${planogramList.length} Planogramas filtrados`;
+        }
+
+        function renderTable(planogramList) {
+            const tbody = document.getElementById('table-body');
+            document.getElementById('records-count').innerText = `${planogramList.length} Registros`;
+
+            if (planogramList.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-8 text-center text-slate-400">
+                            <i class="fa-solid fa-folder-open text-2xl mb-2 block"></i>
+                            No se encontraron registros con los filtros seleccionados
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            let html = '';
+            planogramList.forEach(p => {
+                const absMerma = Math.abs(p.m_usd);
+                const ratioPct = p.v_usd > 0 ? (absMerma / p.v_usd) * 100 : 0;
+                const partPct = storeTotalVentas > 0 ? (p.v_usd / storeTotalVentas) * 100 : 0;
+
+                // REGLA SOLICITADA:
+                // % merma en ROJO si la merma en valor es negativa (< 0)
+                // % merma en AMARILLO si la merma en valor es positiva (> 0)
+                // % merma en VERDE si es igual a 0
+                let mermaBadgeClass = 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+                if (p.m_usd < 0) {
+                    mermaBadgeClass = 'bg-rose-100 text-rose-800 border border-rose-200';
+                } else if (p.m_usd > 0) {
+                    mermaBadgeClass = 'bg-amber-100 text-amber-800 border border-amber-200';
+                }
+
+                // Escape planogram name for safety in onclick attribute
+                const safePlanoName = p.planograma.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                html += `
+                    <tr onclick="openPlanogramModal('${safePlanoName}')" class="row-hover transition border-b border-slate-100 group">
+                        <td class="py-3.5 px-4 sm:px-5">
+                            <div class="font-bold text-slate-800 text-xs sm:text-sm group-hover:text-purple-600 transition flex items-center space-x-2">
+                                <span>${p.planograma}</span>
+                                <i class="fa-solid fa-magnifying-glass-chart text-[11px] text-purple-400 opacity-0 group-hover:opacity-100 transition"></i>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">
+                                Sup: <span class="font-semibold text-slate-600">${p.supervisor}</span> | 
+                                Colab: <span class="font-semibold text-slate-600">${p.colaborador}</span>
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-4 text-right font-black text-slate-900 text-xs sm:text-sm">
+                            ${formatCurrency(p.v_usd)}
+                        </td>
+                        <td class="py-3.5 px-4 text-right font-bold ${p.m_usd < 0 ? 'text-rose-600' : (p.m_usd > 0 ? 'text-amber-600' : 'text-slate-800')} text-xs sm:text-sm">
+                            ${formatCurrency(p.m_usd)}
+                        </td>
+                        <td class="py-3.5 px-4 text-center">
+                            <span class="inline-block px-2.5 py-1 rounded-full text-[11px] font-black ${mermaBadgeClass}">
+                                ${ratioPct.toFixed(1)}%
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-4 sm:px-5 text-right">
+                            <div class="font-black text-purple-700 text-xs sm:text-sm">${partPct.toFixed(1)}%</div>
+                            <div class="w-20 bg-slate-100 rounded-full h-1.5 ml-auto mt-1 overflow-hidden">
+                                <div class="bg-purple-600 h-1.5 rounded-full" style="width: ${Math.min(partPct, 100)}%"></div>
+                            </div>
+                        </td>
+                    </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // --- DRILL-DOWN MODAL LOGIC (TOP 10 ITEMS) ---
+        function openPlanogramModal(planoName) {
+            const planoItems = globalData.filter(d => (d.planograma || 'SIN PLANOGRAMA') === planoName);
+            if (!planoItems || planoItems.length === 0) {
+                showToast("No hay detalles de ítems para este planograma", "info");
+                return;
+            }
+
+            const supervisor = planoItems[0].supervisor || 'NO ASIGNADO';
+            const colaborador = planoItems[0].colaborador || 'NO ASIGNADO';
+
+            const totalVentas = planoItems.reduce((sum, item) => sum + (parseFloat(item.v_usd) || 0), 0);
+            const totalMerma = planoItems.reduce((sum, item) => sum + (parseFloat(item.m_usd) || 0), 0);
+            const ratio = totalVentas > 0 ? (Math.abs(totalMerma) / totalVentas) * 100 : 0;
+
+            document.getElementById('modal-plano-title').innerText = planoName;
+            document.getElementById('modal-plano-sup').innerText = supervisor;
+            document.getElementById('modal-plano-colab').innerText = colaborador;
+
+            document.getElementById('modal-kpi-sales').innerText = formatCurrency(totalVentas);
+            document.getElementById('modal-kpi-merma').innerText = formatCurrency(totalMerma);
+            
+            const modalRatioEl = document.getElementById('modal-kpi-ratio');
+            modalRatioEl.innerText = ratio.toFixed(2) + '%';
+            if (totalMerma < 0) {
+                modalRatioEl.className = "text-sm sm:text-lg font-black text-rose-600";
+            } else if (totalMerma > 0) {
+                modalRatioEl.className = "text-sm sm:text-lg font-black text-amber-600";
+            } else {
+                modalRatioEl.className = "text-sm sm:text-lg font-black text-emerald-600";
+            }
+
+            // 1. Top 10 Most Sold SKUs (sorted by v_usd DESC)
+            const topSales = [...planoItems]
+                .sort((a, b) => (parseFloat(b.v_usd) || 0) - (parseFloat(a.v_usd) || 0))
+                .slice(0, 10);
+
+            const salesTbody = document.getElementById('modal-top-sales-body');
+            if (topSales.length === 0) {
+                salesTbody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-400">Sin ventas registradas</td></tr>`;
+            } else {
+                salesTbody.innerHTML = topSales.map(item => `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="py-2 pr-2">
+                            <div class="font-bold text-slate-800 text-[11px]">${item.item || 'S/SKU'}</div>
+                            <div class="text-[10px] text-slate-500 truncate max-w-[160px]">${item.desc || 'Sin descripción'}</div>
+                        </td>
+                        <td class="py-2 px-1 text-right font-medium text-slate-600">${item.v_unidades || 0}</td>
+                        <td class="py-2 pl-2 text-right font-bold text-slate-900">${formatCurrency(item.v_usd || 0)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            // 2. Top 10 Mayor Merma: Orden de la MAYOR merma hacia la MENOR merma (evaluando magnitud de pérdida)
+            const topMerma = [...planoItems]
+                .sort((a, b) => {
+                    const absA = Math.abs(parseFloat(a.m_usd) || 0);
+                    const absB = Math.abs(parseFloat(b.m_usd) || 0);
+                    if (absB !== absA) {
+                        return absB - absA;
+                    }
+                    return Math.abs(parseFloat(b.m_unidades) || 0) - Math.abs(parseFloat(a.m_unidades) || 0);
+                })
+                .slice(0, 10);
+
+            const mermaTbody = document.getElementById('modal-top-merma-body');
+            if (topMerma.length === 0) {
+                mermaTbody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-400">Sin mermas registradas</td></tr>`;
+            } else {
+                mermaTbody.innerHTML = topMerma.map(item => {
+                    const mVal = parseFloat(item.m_usd) || 0;
+                    const mermaTextColor = mVal < 0 ? 'text-rose-600' : (mVal > 0 ? 'text-amber-600' : 'text-slate-800');
+                    return `
+                        <tr class="hover:bg-slate-50 border-b border-slate-100">
+                            <td class="py-2 pr-2">
+                                <div class="font-bold text-slate-800 text-[11px]">${item.item || 'S/SKU'}</div>
+                                <div class="text-[10px] text-slate-500 truncate max-w-[160px]">${item.desc || 'Sin descripción'}</div>
+                            </td>
+                            <td class="py-2 px-1 text-right font-medium text-slate-600">${item.m_unidades || 0}</td>
+                            <td class="py-2 pl-2 text-right font-bold ${mermaTextColor}">${formatCurrency(mVal)}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            document.getElementById('modal-planogram-detail').classList.remove('hidden');
+        }
+
+        function closePlanogramModal() {
+            document.getElementById('modal-planogram-detail').classList.add('hidden');
+        }
+
+        function resetFilters() {
+            document.getElementById('select-supervisor').value = 'ALL';
+            document.getElementById('select-colaborador').value = 'ALL';
+            document.getElementById('input-search').value = '';
+            document.getElementById('select-sort').value = 'part_desc';
+            onSupervisorChange();
+        }
+
+        function formatCurrency(val) {
+            const num = parseFloat(val) || 0;
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(num);
+        }
+
+        function openConfigModal() {
+            document.getElementById('input-webapp-url').value = localStorage.getItem("APP_WEBAPP_URL") || DEFAULT_WEBAPP_URL;
+            document.getElementById('modal-config').classList.remove('hidden');
+        }
+
+        function closeConfigModal() {
+            document.getElementById('modal-config').classList.add('hidden');
+        }
+
+        function saveConfigUrl() {
+            const val = document.getElementById('input-webapp-url').value.trim();
+            if (val) {
+                localStorage.setItem("APP_WEBAPP_URL", val);
+                closeConfigModal();
+                syncDataFromSheets();
+            }
+        }
+
+        function showToast(msg, type = "info") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'success' ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-800 text-slate-100';
+            toast.className = `px-4 py-2.5 rounded-xl text-xs font-semibold shadow-xl border border-slate-700 transition transform duration-300 translate-y-2 pointer-events-auto flex items-center space-x-2 ${bgClass}`;
+            toast.innerHTML = `<i class="fa-solid fa-circle-info"></i><span>${msg}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-y-2'); }, 10);
+            setTimeout(() => { toast.remove(); }, 3500);
+        }
+    </script>
+</body>
+</html>
